@@ -1,0 +1,35 @@
+{
+  "name": "movieeditor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "口頭指示で既存動画を非破壊編集するローカルツール。Codex App Server が編集判断、Remotion でプレビュー&書き出し。",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.464",
+    "@remotion/google-fonts": "4.0.472",
+    "@remotion/player": "^4.0.464",
+    "@remotion/renderer": "^4.0.464",
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "remotion": "^4.0.464"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
