@@ -661,7 +661,8 @@ export default function EditorApp() {
   // ============================ エディタ ============================
   const vEdl = viewEdl ?? edl; // 表示用（速度を1倍に戻した同期版）
   // 素材(画像/BGM/SE)の asset:// をプレビュー用の相対URLへ解決してから Player に渡す
-  const playerEdl = React.useMemo(() => prepareEdl(vEdl), [vEdl]);
+  // ※ここは早期return より後ろなので hook(useMemo) は使わない（Rules of Hooks 回避）
+  const playerEdl = prepareEdl(vEdl);
   const offsets = clipTimelineOffsets(vEdl);
   const canRun =
     !busy && (!!instruction.trim() || checked.size > 0 || speed > 1);
