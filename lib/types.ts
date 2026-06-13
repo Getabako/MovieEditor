@@ -97,16 +97,38 @@ export type ImageOverlay = OverlayBase & {
   rotation?: number;
 };
 
-export type Overlay = TextOverlay | ImageOverlay;
+/** 図形（まる/三角/四角）。縦横比・位置・大きさ・色を自由に変えられる。 */
+export type ShapeKind = "rect" | "circle" | "triangle";
+export type ShapeOverlay = OverlayBase & {
+  type: "shape";
+  shape: ShapeKind;
+  /** 中心のX座標（出力幅に対する相対 0-1）。既定 0.5 */
+  x?: number;
+  /** 中心のY座標（出力高さに対する相対 0-1）。既定 0.5 */
+  y?: number;
+  /** 幅（出力幅に対する相対 0-1）。既定 0.2 */
+  width?: number;
+  /** 高さ（出力高さに対する相対 0-1）。既定 0.2。width と独立＝縦横比を変えられる */
+  height?: number;
+  /** 塗り色 */
+  color?: string;
+  opacity?: number;
+  /** 回転（度）。既定 0 */
+  rotation?: number;
+};
 
-/** 直感操作（移動/拡縮/回転）でオーバーレイに当てる部分パッチ */
+export type Overlay = TextOverlay | ImageOverlay | ShapeOverlay;
+
+/** 直感操作（移動/拡縮/回転/色）でオーバーレイに当てる部分パッチ */
 export type OverlayPatch = {
   x?: number;
   y?: number;
   width?: number;
+  height?: number;
   fontSize?: number;
   opacity?: number;
   rotation?: number;
+  color?: string;
 };
 
 /** 効果音(SE)＝出力タイムライン上の一点で一度だけ鳴らす音 */

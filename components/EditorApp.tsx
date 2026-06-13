@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { PlayerRef } from "@remotion/player";
-import type { EDL, HistoryEntry, ProjectMeta, PresetId, Overlay, ImageOverlay, TextOverlay, SeEvent, OverlayPatch } from "@/lib/types";
+import type { EDL, HistoryEntry, ProjectMeta, PresetId, Overlay, ImageOverlay, ShapeOverlay, ShapeKind, SeEvent, OverlayPatch } from "@/lib/types";
 import {
   totalFrames,
   totalDuration,
@@ -24,8 +24,12 @@ function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${_oid}`;
 }
 
-/** 記号パレット（フリー配置のスタンプ） */
-const SYMBOLS = ["😀", "🔥", "💡", "❤️", "✨", "👍", "👀", "🎉", "❗️", "❓", "①", "②", "③", "💯", "⤴︎"];
+/** 図形ツール（まる/三角/四角） */
+const SHAPES: { kind: ShapeKind; label: string }[] = [
+  { kind: "circle", label: "●" },
+  { kind: "triangle", label: "▲" },
+  { kind: "rect", label: "■" },
+];
 
 // Player は SSR 不可。ref を prop で渡すラッパー経由でロードする。
 const RemotionPlayer = dynamic(() => import("./RemotionPlayer"), { ssr: false });
@@ -60,6 +64,7 @@ export default function EditorApp() {
   const [playheadSec, setPlayheadSec] = useState(0);
   const [selection, setSelection] = useState<{ startSec: number; endSec: number } | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const [shapeColor, setShapeColor] = useState("#FF5A5A");
 
   const [instruction, setInstruction] = useState("");
   const [log, setLog] = useState<LogLine[]>([]);
@@ -81,7 +86,22 @@ export default function EditorApp() {
     metaRef.current = meta;
   }, [meta]);
 
-  // ============ 素材(画像/記号/BGM/SE)の編集ヘルパ ============
+  // ⌘Z = 元に戻す / ⌘⇧Z = やり直し（入力欄にフォーカス中は無効）
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable) return;
+      e.preventDefault();
+      if (e.shiftKey) void doHistory("redo");
+      else void doHistory("undo");
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [meta]);
+
+  // ============ 素材(画像/図形/BGM/SE)の編集ヘルパ ============
   /** 手動編集の EDL をサーバーへコミット（履歴に積む＝autosave） */
   const applyEdl = useCallback(async (next: EDL, label: string) => {
     if (!metaRef.current) return;
@@ -161,18 +181,32 @@ export default function EditorApp() {
       width: 0.25,
     } as ImageOverlay);
   }
-  function addSymbol(sym: string) {
+  function addShape(kind: ShapeKind) {
     addOverlay({
-      id: newId("sym"),
-      type: "text",
-      free: true,
-      text: sym,
+      id: newId("shape"),
+      type: "shape",
+      shape: kind,
       startSec: playheadSec,
       endSec: Math.min(durationSec, playheadSec + 5),
       x: 0.5,
       y: 0.5,
-      fontSize: 140,
-    } as TextOverlay);
+      width: 0.18,
+      height: 0.18,
+      color: shapeColor,
+    } as ShapeOverlay);
+  }
+  /** 選択中の図形の色を変更（パレットの色も更新） */
+  function applyColor(color: string) {
+    setShapeColor(color);
+    const cur = edlRef.current;
+    if (!cur || !selectedOverlayId) return;
+    const sel = cur.overlays.find((o) => o.id === selectedOverlayId);
+    if (sel && sel.type === "shape") {
+      void applyEdl(
+        { ...cur, overlays: cur.overlays.map((o) => (o.id === selectedOverlayId ? { ...o, color } : o)) },
+        "図形の色変更",
+      );
+    }
   }
   async function pickBgm() {
     const r = await fetch("/api/pick-file?kind=audio").then((x) => x.json());
@@ -811,18 +845,30 @@ export default function EditorApp() {
                 />
               </div>
             )}
-            <div className="text-xs opacity-60 mb-1">記号/スタンプ（クリックで追加）:</div>
-            <div className="flex flex-wrap gap-1 mb-1">
-              {SYMBOLS.map((s) => (
-                <button
-                  key={s}
-                  className="btn !px-2 !py-1 text-lg leading-none"
-                  onClick={() => addSymbol(s)}
-                  title="記号を追加"
-                >
-                  {s}
-                </button>
-              ))}
+            <div className="text-xs opacity-60 mb-1">図形（クリックで追加・縦横/位置/大きさを直感操作）:</div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="flex gap-1">
+                {SHAPES.map((s) => (
+                  <button
+                    key={s.kind}
+                    className="btn !px-3 !py-1 text-lg leading-none"
+                    onClick={() => addShape(s.kind)}
+                    title={`${s.kind} を追加`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-1 text-xs opacity-80">
+                色
+                <input
+                  type="color"
+                  value={shapeColor}
+                  onChange={(e) => applyColor(e.target.value)}
+                  className="w-7 h-7 p-0 border border-[var(--border)] rounded cursor-pointer bg-transparent"
+                  title="図形の色（選択中の図形にも適用）"
+                />
+              </label>
             </div>
             {edl?.audio?.se && edl.audio.se.length > 0 && (
               <div className="text-xs opacity-60 mt-1">効果音 {edl.audio.se.length}個（履歴から取り消せます）</div>

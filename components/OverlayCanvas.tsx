@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { EDL, Overlay, ImageOverlay, TextOverlay, OverlayPatch } from "@/lib/types";
+import type { EDL, Overlay, ImageOverlay, TextOverlay, ShapeOverlay, OverlayPatch } from "@/lib/types";
 import { assetToUrl } from "@/lib/asset-url";
 
 // ============================================================================
@@ -11,9 +11,10 @@ import { assetToUrl } from "@/lib/asset-url";
 // 動画の表示矩形(レターボックス考慮)を実測して、相対座標↔画面pxを対応づける。
 // ============================================================================
 
-type EditableKind = "image" | "freetext";
+type EditableKind = "image" | "freetext" | "shape";
 function editableKind(o: Overlay): EditableKind | null {
   if (o.type === "image") return "image";
+  if (o.type === "shape") return "shape";
   if (o.type === "text" && (o as TextOverlay).free) return "freetext";
   return null;
 }
@@ -105,18 +106,29 @@ export default function OverlayCanvas({
     e.stopPropagation();
     onSelect(o.id);
     const startX = e.clientX;
+    const startY = e.clientY;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     const img = o as ImageOverlay;
     const txt = o as TextOverlay;
-    const baseW = img.width ?? 0.25; // 画像: 出力幅比
+    const shp = o as ShapeOverlay;
+    const baseW = (kind === "shape" ? shp.width ?? 0.2 : img.width ?? 0.25); // 出力幅比
+    const baseH = shp.height ?? 0.2; // 図形: 出力高さ比
     const baseFont = txt.fontSize ?? 80; // 記号: 出力px
     const move = (ev: PointerEvent) => {
-      const dxRel = (ev.clientX - startX) / rect.w; // 出力幅比の変化
-      if (kind === "image") {
-        onLiveChange(o.id, { width: Math.max(0.03, Math.min(1.5, baseW + dxRel * 2)) });
+      // 中心固定なので、角を dx 動かすと半径が dx 増える＝幅は 2*dx 変わる
+      const dwRel = ((ev.clientX - startX) / rect.w) * 2;
+      const dhRel = ((ev.clientY - startY) / rect.h) * 2;
+      if (kind === "shape") {
+        // 図形＝縦横を独立に（縦横比を変えられる）
+        onLiveChange(o.id, {
+          width: Math.max(0.01, Math.min(1.5, baseW + dwRel)),
+          height: Math.max(0.01, Math.min(1.5, baseH + dhRel)),
+        });
+      } else if (kind === "image") {
+        onLiveChange(o.id, { width: Math.max(0.03, Math.min(1.5, baseW + dwRel)) });
       } else {
-        // 記号: 幅比の変化を出力pxに換算（出力幅 = edl.output.width）
-        const deltaPx = dxRel * 2 * edl.output.width;
+        // 記号: 幅比の変化を出力pxに換算
+        const deltaPx = dwRel * edl.output.width;
         onLiveChange(o.id, { fontSize: Math.max(16, Math.min(600, baseFont + deltaPx)) });
       }
     };
@@ -145,20 +157,28 @@ export default function OverlayCanvas({
           const cy = rect.y + oy * rect.h;
           const selected = selectedId === o.id;
 
-          // 表示寸法（プレビュー枠内px）
-          let elW: number | undefined;
-          let elH: number | undefined;
+          // 表示寸法（プレビュー枠内px）。本体の見た目は Player 側が描くので、ここは透明の同寸ボックス。
           let replica: React.ReactNode;
           if (k === "image") {
             const img = o as ImageOverlay;
-            elW = (img.width ?? 0.25) * rect.w;
             replica = (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={assetToUrl(img.src) ?? img.src}
                 alt=""
                 draggable={false}
-                style={{ width: elW, height: "auto", display: "block", opacity: 0 }}
+                style={{ width: (img.width ?? 0.25) * rect.w, height: "auto", display: "block", opacity: 0 }}
+              />
+            );
+          } else if (k === "shape") {
+            const shp = o as ShapeOverlay;
+            replica = (
+              <div
+                style={{
+                  width: (shp.width ?? 0.2) * rect.w,
+                  height: (shp.height ?? 0.2) * rect.h,
+                  opacity: 0,
+                }}
               />
             );
           } else {

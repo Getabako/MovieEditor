@@ -13,7 +13,7 @@ import {
 } from "remotion";
 import { loadFont } from "@remotion/google-fonts/MPLUSRounded1c";
 import type { EditorProps } from "./types";
-import type { ImageOverlay, TextOverlay } from "@/lib/types";
+import type { ImageOverlay, TextOverlay, ShapeOverlay } from "@/lib/types";
 import {
   ROUNDED_FONT_STACK,
   DEFAULT_SUBTITLE_COLOR,
@@ -83,6 +83,8 @@ export const Editor: React.FC<EditorProps> = ({
           <Sequence key={ov.id} from={from} durationInFrames={dur} layout="none">
             {ov.type === "text" ? (
               <TextOverlayView ov={ov} edl={edl} />
+            ) : ov.type === "shape" ? (
+              <ShapeView ov={ov} edl={edl} />
             ) : (
               <ImageOverlayView ov={ov} edl={edl} />
             )}
@@ -304,6 +306,41 @@ const TextOverlayView: React.FC<{ ov: TextOverlay; edl: EditorProps["edl"] }> = 
           noWrap
         />
       </div>
+    </AbsoluteFill>
+  );
+};
+
+/** 図形（まる/三角/四角） */
+const ShapeView: React.FC<{ ov: ShapeOverlay; edl: EditorProps["edl"] }> = ({ ov, edl }) => {
+  const w = (ov.width ?? 0.2) * edl.output.width;
+  const h = (ov.height ?? 0.2) * edl.output.height;
+  const color = ov.color ?? "#FF5A5A";
+  const base: React.CSSProperties = {
+    position: "absolute",
+    left: `${(ov.x ?? 0.5) * 100}%`,
+    top: `${(ov.y ?? 0.5) * 100}%`,
+    transform: `translate(-50%,-50%) rotate(${ov.rotation ?? 0}deg)`,
+    width: w,
+    height: h,
+    opacity: ov.opacity ?? 1,
+  };
+  if (ov.shape === "circle") {
+    return (
+      <AbsoluteFill>
+        <div style={{ ...base, background: color, borderRadius: "50%" }} />
+      </AbsoluteFill>
+    );
+  }
+  if (ov.shape === "triangle") {
+    return (
+      <AbsoluteFill>
+        <div style={{ ...base, background: color, clipPath: "polygon(50% 0%, 100% 100%, 0% 100%)" }} />
+      </AbsoluteFill>
+    );
+  }
+  return (
+    <AbsoluteFill>
+      <div style={{ ...base, background: color }} />
     </AbsoluteFill>
   );
 };
