@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { getMeta, getEDL } from "@/lib/project-store";
 import { paths, ensureDir } from "@/lib/paths";
 import { renderEDL } from "@/lib/remotion-render";
+import { prepareEdl } from "@/lib/asset-url";
 import { sseResponse } from "@/lib/sse";
 
 export const runtime = "nodejs";
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest) {
   // Renderer の OffthreadVideo が読む元動画URL（同一サーバー経由）
   const origin = req.nextUrl.origin;
   const srcUrl = `${origin}/api/source/${id}`;
+  // 素材(画像/BGM/SE)の asset:// を絶対URLへ解決（headless chromium が取得できるように）
+  const renderEdl = prepareEdl(edl, origin);
 
   return sseResponse(async (send) => {
     ensureDir(paths.exportsDir(id));
@@ -28,7 +31,7 @@ export async function POST(req: NextRequest) {
     const rawPath = path.join(paths.exportsDir(id), rawName);
 
     send("step", { kind: "info", text: "Remotion バンドル/レンダリング開始…" });
-    await renderEDL(edl, srcUrl, rawPath, (p) =>
+    await renderEDL(renderEdl, srcUrl, rawPath, (p) =>
       send("progress", { phase: "render", pct: Math.round(p * 100) }),
     );
 

@@ -73,27 +73,61 @@ export type TextOverlay = OverlayBase & {
   strokeOuter?: string;
   /** 自動シーンタイトルとして生成されたか（再生成で置換対象） */
   isSceneTitle?: boolean;
+  /**
+   * フリー配置の記号/スタンプ（絵文字や♡!?など）。true のとき定型装飾を使わず、
+   * x,y(中心・0-1) に fontSize の大きさでそのまま置く。直感操作（移動/拡縮）の対象。
+   */
+  free?: boolean;
+  /** 回転（度）。free 記号などで使用。既定 0 */
+  rotation?: number;
 };
 
 export type ImageOverlay = OverlayBase & {
   type: "image";
-  /** 画像の絶対パス or URL */
+  /** 画像のURL / 絶対パス / asset://絶対パス */
   src: string;
+  /** 中心のX座標（出力幅に対する相対 0-1）。既定 0.5 */
   x?: number;
+  /** 中心のY座標（出力高さに対する相対 0-1）。既定 0.5 */
   y?: number;
-  /** 幅（出力解像度に対する相対 0-1）。未指定は元サイズ */
+  /** 幅（出力幅に対する相対 0-1）。既定 0.25 */
   width?: number;
   opacity?: number;
+  /** 回転（度）。既定 0 */
+  rotation?: number;
 };
 
 export type Overlay = TextOverlay | ImageOverlay;
 
+/** 直感操作（移動/拡縮/回転）でオーバーレイに当てる部分パッチ */
+export type OverlayPatch = {
+  x?: number;
+  y?: number;
+  width?: number;
+  fontSize?: number;
+  opacity?: number;
+  rotation?: number;
+};
+
+/** 効果音(SE)＝出力タイムライン上の一点で一度だけ鳴らす音 */
+export type SeEvent = {
+  id: string;
+  /** 音源のURL / 絶対パス / asset://絶対パス */
+  src: string;
+  /** 出力タイムライン上の発音時刻(秒) */
+  atSec: number;
+  /** 音量 0-1。既定 1 */
+  volume?: number;
+};
+
 export type AudioSettings = {
   /** 元動画の音声を消すか */
   muteOriginal?: boolean;
-  /** BGM の絶対パス or URL */
+  /** BGM の絶対パス or URL or asset://絶対パス（全編ループ） */
   bgmPath?: string;
   bgmVolume?: number;
+  /** 効果音イベント（出力時刻で一度ずつ再生） */
+  se?: SeEvent[];
   /** 書き出し時に音量ノーマライズ(loudnorm)を適用するか */
   normalize?: boolean;
 };

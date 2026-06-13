@@ -100,6 +100,18 @@ export const Editor: React.FC<EditorProps> = ({
       {edl.audio?.bgmPath && (
         <Audio src={edl.audio.bgmPath} volume={edl.audio.bgmVolume ?? 0.2} loop />
       )}
+
+      {/* 効果音(SE)：出力タイムライン上の発音時刻から一度ずつ鳴らす */}
+      {edl.audio?.se?.map((se) => (
+        <Sequence
+          key={se.id}
+          from={Math.round(se.atSec * fps)}
+          durationInFrames={fps * 10}
+          layout="none"
+        >
+          <Audio src={se.src} volume={se.volume ?? 1} />
+        </Sequence>
+      ))}
     </AbsoluteFill>
   );
 };
@@ -177,6 +189,31 @@ const TextOverlayView: React.FC<{ ov: TextOverlay; edl: EditorProps["edl"] }> = 
   ov,
   edl,
 }) => {
+  // フリー配置の記号/スタンプ（絵文字・♡!? など）＝定型装飾なしで x,y 中心にそのまま置く
+  if (ov.free) {
+    const fs = (ov.fontSize ?? 80) * (edl.output.height / 1080);
+    return (
+      <AbsoluteFill>
+        <div
+          style={{
+            position: "absolute",
+            left: `${(ov.x ?? 0.5) * 100}%`,
+            top: `${(ov.y ?? 0.5) * 100}%`,
+            transform: `translate(-50%,-50%) rotate(${ov.rotation ?? 0}deg)`,
+            fontSize: fs,
+            lineHeight: 1,
+            fontWeight: ov.fontWeight ?? 900,
+            color: ov.color ?? "#ffffff",
+            whiteSpace: "nowrap",
+            textShadow: "0 2px 6px rgba(0,0,0,.5)",
+          }}
+        >
+          {ov.text}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
   // variant 未指定でも「字幕でないテキスト」はタイトル扱いにして装飾する
   const isTitle = ov.variant === "title" || ov.isSceneTitle === true || !ov.isSubtitle;
   const h = edl.output.height;
@@ -286,7 +323,7 @@ const ImageOverlayView: React.FC<{ ov: ImageOverlay; edl: EditorProps["edl"] }> 
           position: "absolute",
           left: `${x * 100}%`,
           top: `${y * 100}%`,
-          transform: "translate(-50%, -50%)",
+          transform: `translate(-50%, -50%) rotate(${ov.rotation ?? 0}deg)`,
           width: w,
           opacity: ov.opacity ?? 1,
         }}

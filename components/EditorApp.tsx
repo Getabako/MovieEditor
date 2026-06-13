@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { PlayerRef } from "@remotion/player";
-import type { EDL, HistoryEntry, ProjectMeta, PresetId } from "@/lib/types";
+import type { EDL, HistoryEntry, ProjectMeta, PresetId, Overlay, ImageOverlay, TextOverlay, SeEvent, OverlayPatch } from "@/lib/types";
 import {
   totalFrames,
   totalDuration,
@@ -11,9 +11,21 @@ import {
   outputToSource,
   stripSpeedForPreview,
 } from "@/lib/edl";
+import { prepareEdl, toAsset } from "@/lib/asset-url";
 import { consumeSSE } from "@/lib/sse-client";
 import { Timeline } from "./Timeline";
 import { fmtTime } from "./util";
+
+const OverlayCanvasDyn = dynamic(() => import("./OverlayCanvas"), { ssr: false });
+
+let _oid = 0;
+function newId(prefix: string): string {
+  _oid += 1;
+  return `${prefix}-${Date.now().toString(36)}-${_oid}`;
+}
+
+/** 記号パレット（フリー配置のスタンプ） */
+const SYMBOLS = ["😀", "🔥", "💡", "❤️", "✨", "👍", "👀", "🎉", "❗️", "❓", "①", "②", "③", "💯", "⤴︎"];
 
 // Player は SSR 不可。ref を prop で渡すラッパー経由でロードする。
 const RemotionPlayer = dynamic(() => import("./RemotionPlayer"), { ssr: false });
@@ -47,6 +59,7 @@ export default function EditorApp() {
 
   const [playheadSec, setPlayheadSec] = useState(0);
   const [selection, setSelection] = useState<{ startSec: number; endSec: number } | null>(null);
+  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
 
   const [instruction, setInstruction] = useState("");
   const [log, setLog] = useState<LogLine[]>([]);
@@ -59,6 +72,121 @@ export default function EditorApp() {
 
   const playerRef = useRef<PlayerRef>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const edlRef = useRef<EDL | null>(null);
+  const metaRef = useRef<ProjectMeta | null>(null);
+  useEffect(() => {
+    edlRef.current = edl;
+  }, [edl]);
+  useEffect(() => {
+    metaRef.current = meta;
+  }, [meta]);
+
+  // ============ 素材(画像/記号/BGM/SE)の編集ヘルパ ============
+  /** 手動編集の EDL をサーバーへコミット（履歴に積む＝autosave） */
+  const applyEdl = useCallback(async (next: EDL, label: string) => {
+    if (!metaRef.current) return;
+    try {
+      const r = await fetch("/api/edl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: metaRef.current.id, edl: next, label }),
+      }).then((x) => x.json());
+      if (r.error) {
+        alert(r.error);
+        return;
+      }
+      setMeta(r.meta);
+      setEdl(r.edl);
+      setHistory(r.history ?? []);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }, []);
+
+  /** ドラッグ中のライブ更新（サーバー未保存。Player に即反映） */
+  const updateOverlayLive = useCallback((id: string, patch: OverlayPatch) => {
+    setEdl((e) =>
+      e ? { ...e, overlays: e.overlays.map((o) => (o.id === id ? ({ ...o, ...patch } as Overlay) : o)) } : e,
+    );
+  }, []);
+
+  /** 操作確定時にコミット（最新の edl を edlRef から読む） */
+  const commitOverlay = useCallback(
+    (label: string) => {
+      if (edlRef.current) void applyEdl(edlRef.current, label);
+    },
+    [applyEdl],
+  );
+
+  const addOverlay = useCallback(
+    (ov: Overlay) => {
+      const cur = edlRef.current;
+      if (!cur) return;
+      void applyEdl({ ...cur, overlays: [...cur.overlays, ov] }, "素材を追加");
+      setSelectedOverlayId(ov.id);
+    },
+    [applyEdl],
+  );
+
+  const removeOverlay = useCallback(
+    (id: string) => {
+      const cur = edlRef.current;
+      if (!cur) return;
+      void applyEdl({ ...cur, overlays: cur.overlays.filter((o) => o.id !== id) }, "素材を削除");
+      setSelectedOverlayId((s) => (s === id ? null : s));
+    },
+    [applyEdl],
+  );
+
+  const setAudioPatch = useCallback(
+    (patch: Partial<NonNullable<EDL["audio"]>>, label: string) => {
+      const cur = edlRef.current;
+      if (!cur) return;
+      void applyEdl({ ...cur, audio: { ...(cur.audio ?? {}), ...patch } }, label);
+    },
+    [applyEdl],
+  );
+
+  async function addImage() {
+    const r = await fetch("/api/pick-file?kind=image").then((x) => x.json());
+    if (r.canceled || !r.path) return;
+    addOverlay({
+      id: newId("img"),
+      type: "image",
+      src: toAsset(r.path),
+      startSec: playheadSec,
+      endSec: Math.min(durationSec, playheadSec + 5),
+      x: 0.5,
+      y: 0.5,
+      width: 0.25,
+    } as ImageOverlay);
+  }
+  function addSymbol(sym: string) {
+    addOverlay({
+      id: newId("sym"),
+      type: "text",
+      free: true,
+      text: sym,
+      startSec: playheadSec,
+      endSec: Math.min(durationSec, playheadSec + 5),
+      x: 0.5,
+      y: 0.5,
+      fontSize: 140,
+    } as TextOverlay);
+  }
+  async function pickBgm() {
+    const r = await fetch("/api/pick-file?kind=audio").then((x) => x.json());
+    if (r.canceled || !r.path) return;
+    setAudioPatch({ bgmPath: toAsset(r.path) }, "BGM設定");
+  }
+  async function addSe() {
+    const r = await fetch("/api/pick-file?kind=audio").then((x) => x.json());
+    if (r.canceled || !r.path) return;
+    const cur = edlRef.current;
+    if (!cur) return;
+    const se: SeEvent = { id: newId("se"), src: toAsset(r.path), atSec: playheadSec, volume: 1 };
+    setAudioPatch({ se: [...(cur.audio?.se ?? []), se] }, `効果音を追加 (${fmtTime(playheadSec)})`);
+  }
 
   // ---- 初期ロード ----
   useEffect(() => {
@@ -532,6 +660,8 @@ export default function EditorApp() {
 
   // ============================ エディタ ============================
   const vEdl = viewEdl ?? edl; // 表示用（速度を1倍に戻した同期版）
+  // 素材(画像/BGM/SE)の asset:// をプレビュー用の相対URLへ解決してから Player に渡す
+  const playerEdl = React.useMemo(() => prepareEdl(vEdl), [vEdl]);
   const offsets = clipTimelineOffsets(vEdl);
   const canRun =
     !busy && (!!instruction.trim() || checked.size > 0 || speed > 1);
@@ -576,13 +706,22 @@ export default function EditorApp() {
       <div className="flex-1 flex min-h-0">
         {/* 中央: プレビュー + タイムライン */}
         <section className="flex-1 flex flex-col min-w-0 p-3 gap-3">
-          <div className="flex-1 min-h-0 flex items-center justify-center bg-black rounded-lg overflow-hidden">
+          <div className="flex-1 min-h-0 relative flex items-center justify-center bg-black rounded-lg overflow-hidden">
             <RemotionPlayer
               playerRef={playerRef}
-              edl={vEdl}
+              edl={playerEdl}
               srcUrl={proxyExists ? `/api/source/${meta.id}?proxy=1` : `/api/source/${meta.id}`}
               durationInFrames={frames}
               realtimeSpeed={false}
+            />
+            <OverlayCanvasDyn
+              edl={vEdl}
+              playheadSec={playheadSec}
+              selectedId={selectedOverlayId}
+              onSelect={setSelectedOverlayId}
+              onLiveChange={updateOverlayLive}
+              onCommit={commitOverlay}
+              onDelete={removeOverlay}
             />
           </div>
 
@@ -642,6 +781,51 @@ export default function EditorApp() {
                 {listening ? "● 録音中" : "🎤 音声"}
               </button>
             </div>
+
+            {/* 装飾・音：画像/記号/BGM/効果音。画像と記号はプレビュー上でドラッグ移動・角でサイズ変更 */}
+            <div className="text-sm font-semibold mt-4 mb-2">🎨 装飾・音を足す</div>
+            <div className="text-xs opacity-60 mb-2">
+              追加すると再生位置から5秒表示。プレビュー上で<strong>ドラッグ＝移動／右下の緑■＝サイズ変更／×＝削除</strong>。
+            </div>
+            <div className="flex flex-wrap gap-1 mb-2">
+              <button className="btn !text-xs" onClick={addImage}>🖼 画像を追加</button>
+              <button className="btn !text-xs" onClick={pickBgm}>🎵 BGMを選ぶ</button>
+              {edl?.audio?.bgmPath && (
+                <button className="btn !text-xs" onClick={() => setAudioPatch({ bgmPath: undefined }, "BGM解除")}>
+                  BGM解除
+                </button>
+              )}
+              <button className="btn !text-xs" onClick={addSe}>🔊 効果音をここに</button>
+            </div>
+            {edl?.audio?.bgmPath && (
+              <div className="flex items-center gap-2 mb-2 text-xs">
+                <span className="opacity-60">BGM音量</span>
+                <input
+                  type="range" min={0} max={1} step={0.05}
+                  defaultValue={edl.audio.bgmVolume ?? 0.2}
+                  onPointerUp={(e) =>
+                    setAudioPatch({ bgmVolume: Number((e.target as HTMLInputElement).value) }, "BGM音量")
+                  }
+                  className="flex-1"
+                />
+              </div>
+            )}
+            <div className="text-xs opacity-60 mb-1">記号/スタンプ（クリックで追加）:</div>
+            <div className="flex flex-wrap gap-1 mb-1">
+              {SYMBOLS.map((s) => (
+                <button
+                  key={s}
+                  className="btn !px-2 !py-1 text-lg leading-none"
+                  onClick={() => addSymbol(s)}
+                  title="記号を追加"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            {edl?.audio?.se && edl.audio.se.length > 0 && (
+              <div className="text-xs opacity-60 mt-1">効果音 {edl.audio.se.length}個（履歴から取り消せます）</div>
+            )}
 
             {/* ワンクリック処理（任意でチェック。指示と一緒に一気に実行される） */}
             <div className="text-sm font-semibold mt-4 mb-2">
