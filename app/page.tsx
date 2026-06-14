@@ -1,5 +1,5 @@
-import EditorApp from "@/components/EditorApp";
+import Studio from "@/components/Studio";
 
 export default function Page() {
-  return <EditorApp />;
+  return <Studio />;
 }

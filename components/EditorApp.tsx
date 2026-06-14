@@ -598,7 +598,7 @@ export default function EditorApp() {
   if (view === "home" || !meta || !edl) {
     const loading = creating || picking;
     return (
-      <main className="min-h-screen p-8 max-w-4xl mx-auto">
+      <main className="min-h-full p-8 max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">MovieEditor</h1>
         <p className="text-sm opacity-70 mb-6">
           口頭/自然言語の指示で既存動画を非破壊編集（Codex + Remotion）
@@ -709,7 +709,7 @@ export default function EditorApp() {
     !busy && (!!instruction.trim() || checked.size > 0 || speed > 1);
 
   return (
-    <main className="h-screen flex flex-col">
+    <main className="h-full flex flex-col">
       {/* トップバー */}
       <header className="flex items-center gap-2 px-4 py-2 border-b border-[var(--border)] bg-[var(--panel)]">
         <button className="btn" onClick={() => setView("home")}>

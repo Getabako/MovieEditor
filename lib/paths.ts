@@ -52,6 +52,10 @@ export const paths = {
   tmpDir(id: string) {
     return path.join(this.projectDir(id), "tmp");
   },
+  /** スタジオ（台本/サムネ）の成果物置き場。プロジェクト(動画)とは独立。 */
+  studioDir: path.join(ROOT, "studio"),
+  scriptsDir: path.join(ROOT, "studio", "scripts"),
+  thumbnailsDir: path.join(ROOT, "studio", "thumbnails"),
 };
 
 export function ensureDir(p: string) {
