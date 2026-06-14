@@ -39,3 +39,84 @@ body {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* =========================================================================
+   共通UI（全タブで効くようにグローバルに置く。以前は EditorApp 内 styled-jsx
+   にあったため、台本/サムネタブでボタンが無装飾になっていた）
+   ========================================================================= */
+.btn {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.btn:hover:not(:disabled) {
+  background: var(--border);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 主アクション（生成・実行など）。ひと目でボタンと分かる大きめ＋色。 */
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 13px 26px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(91, 140, 255, 0.35);
+  transition: filter 0.12s, transform 0.04s;
+}
+.btn-accent:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.btn-accent:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn-accent:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: me-spin 0.7s linear infinite;
+}
+@keyframes me-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* セクション見出し：左にアクセントバー＋下線で区切りを明確に */
+.section-title {
+  position: relative;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 4px 0 8px 13px;
+  border-bottom: 1px solid var(--border);
+}
+.section-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 3px;
+  background: var(--accent);
+}

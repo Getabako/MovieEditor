@@ -801,7 +801,7 @@ export default function EditorApp() {
         {/* 右パネル: 指示 + ワンクリックを統合し、1ボタンで一気に実行 */}
         <aside className="w-[460px] border-l border-[var(--border)] bg-[var(--panel)] flex flex-col min-h-0">
           <div className="p-3 border-b border-[var(--border)] overflow-auto">
-            <div className="text-sm font-semibold mb-2">やりたい編集を入力</div>
+            <div className="section-title mb-3">やりたい編集を入力</div>
             <textarea
               className="w-full h-24 bg-[var(--panel-2)] border border-[var(--border)] rounded p-2 text-sm resize-none"
               placeholder={
@@ -825,7 +825,7 @@ export default function EditorApp() {
             </div>
 
             {/* 装飾・音：画像/記号/BGM/効果音。画像と記号はプレビュー上でドラッグ移動・角でサイズ変更 */}
-            <div className="text-sm font-semibold mt-4 mb-2">装飾・音を足す</div>
+            <div className="section-title mt-5 mb-3">装飾・音を足す</div>
             <div className="text-xs opacity-60 mb-2">
               追加した素材はプレビュー上で<strong>ドラッグ＝移動／右下の緑■＝サイズ変更／×＝削除</strong>。表示する長さは選択して下で調整できます。
             </div>
@@ -938,7 +938,7 @@ export default function EditorApp() {
             })()}
 
             {/* ワンクリック処理（任意でチェック。指示と一緒に一気に実行される） */}
-            <div className="text-sm font-semibold mt-4 mb-2">
+            <div className="section-title mt-5 mb-3">
               ワンクリック処理 <span className="opacity-50 font-normal text-xs">（任意・複数選択可）</span>
             </div>
             <div className="flex flex-col gap-1">
@@ -1016,7 +1016,7 @@ export default function EditorApp() {
 
           {/* ログ */}
           <div className="p-3 border-b border-[var(--border)] flex-1 min-h-0 overflow-auto">
-            <div className="text-sm font-semibold mb-2 flex items-center gap-2">
+            <div className="section-title mb-3 flex items-center gap-2">
               進捗ログ
               {busy && (
                 <span className="flex items-center gap-1 text-[var(--accent)] text-xs">
@@ -1054,7 +1054,7 @@ export default function EditorApp() {
 
           {/* 履歴 */}
           <div className="p-3 max-h-[28%] overflow-auto">
-            <div className="text-sm font-semibold mb-2">履歴（クリックで復元）</div>
+            <div className="section-title mb-3">履歴（クリックで復元）</div>
             <div className="flex flex-col gap-0.5">
               {[...history].reverse().map((h) => (
                 <button
@@ -1084,58 +1084,14 @@ export default function EditorApp() {
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-[var(--panel)] border border-[var(--border)] rounded-lg p-4 mb-4">
-      <div className="text-sm font-semibold mb-3">{title}</div>
+      <div className="section-title mb-4">{title}</div>
       {children}
     </div>
   );
 }
 
+// 共通スタイル（.btn / .btn-accent / .spinner / .section-title）は app/globals.css に移設済み。
+// 全タブ（台本/動画編集/サムネ）で効くようにするため、ここでは何も注入しない。
 function Style() {
-  return (
-    <style jsx global>{`
-      .btn {
-        background: var(--panel-2);
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        padding: 8px 14px;
-        font-size: 15px;
-        cursor: pointer;
-      }
-      .btn:hover:not(:disabled) {
-        background: var(--border);
-      }
-      .btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-      .btn-accent {
-        background: var(--accent);
-        color: #fff;
-        border: none;
-        border-radius: 6px;
-        padding: 9px 16px;
-        font-size: 15px;
-        cursor: pointer;
-        font-weight: 600;
-      }
-      .btn-accent:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-      .spinner {
-        display: inline-block;
-        width: 13px;
-        height: 13px;
-        border: 2px solid rgba(255, 255, 255, 0.35);
-        border-top-color: #fff;
-        border-radius: 50%;
-        animation: me-spin 0.7s linear infinite;
-      }
-      @keyframes me-spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-    `}</style>
-  );
+  return null;
 }

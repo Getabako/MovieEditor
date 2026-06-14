@@ -24,7 +24,7 @@ export default function Studio() {
   return (
     <div className="h-screen flex flex-col">
       {/* タブバー */}
-      <nav className="shrink-0 flex items-center gap-1 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--panel)]">
+      <nav className="shrink-0 flex items-center gap-1.5 px-4 pt-2 border-b border-[var(--border)] bg-[var(--panel)]">
         {TABS.map((t) => {
           const active = tab === t.key;
           return (
@@ -32,10 +32,10 @@ export default function Studio() {
               key={t.key}
               onClick={() => setTab(t.key)}
               className={
-                "px-4 py-1.5 rounded-t text-sm font-semibold transition-colors " +
+                "px-6 py-2.5 rounded-t-lg text-base font-bold transition-colors " +
                 (active
                   ? "bg-[var(--panel-2)] text-[var(--foreground)] border border-b-0 border-[var(--border)]"
-                  : "opacity-60 hover:opacity-100")
+                  : "opacity-55 hover:opacity-100")
               }
             >
               {t.label}

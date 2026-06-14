@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 // ============================================================================
 // サムネツール（汎用UI）。テイストはサーバ側 lib/thumbnail-prompt.ts + studio/thumbnail-style.md で決まる。
-// Codex の画像生成でサムネPNGを作り、プレビュー＆ダウンロードする。
+// 「編集中の動画」の内容（タイトル/テロップ/文字起こし）から各欄を自動入力できる。
 // ============================================================================
+
+const labelCls = "block text-[15px] font-medium opacity-80 mb-1.5";
+const inputCls =
+  "w-full px-3.5 py-3 text-[15px] rounded-lg bg-[var(--panel-2)] border border-[var(--border)]";
 
 export default function ThumbnailStudio() {
   const [mainCopy, setMainCopy] = useState("");
@@ -13,10 +17,60 @@ export default function ThumbnailStudio() {
   const [scene, setScene] = useState("");
   const [badge, setBadge] = useState("");
   const [busy, setBusy] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [projectTitle, setProjectTitle] = useState("");
   const [steps, setSteps] = useState<string[]>([]);
   const [imgUrl, setImgUrl] = useState("");
   const [err, setErr] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+
+  // マウント時：編集中（＝最新）の動画を把握し、空なら自動でサムネ要素を提案して埋める
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/projects").then((x) => x.json());
+        const list = (r.projects ?? []) as Array<{ title: string; updatedAt?: string }>;
+        const latest = [...list].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0];
+        if (latest && !cancelled) {
+          setProjectTitle(latest.title);
+          void autofill(true);
+        }
+      } catch {
+        /* プロジェクトが無くても手入力で使える */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function autofill(onlyIfEmpty = false) {
+    if (suggesting || busy) return;
+    if (onlyIfEmpty && (mainCopy.trim() || scene.trim())) return;
+    setSuggesting(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/thumbnail/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "自動入力に失敗しました");
+      if (data.title) setProjectTitle(data.title);
+      const s = data.suggestion ?? {};
+      setMainCopy((v) => (onlyIfEmpty && v ? v : s.mainCopy ?? v));
+      setSubCopy((v) => (onlyIfEmpty && v ? v : s.subCopy ?? v));
+      setScene((v) => (onlyIfEmpty && v ? v : s.scene ?? v));
+      setBadge((v) => (onlyIfEmpty && v ? v : s.badge ?? v));
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   async function generate() {
     if (!mainCopy.trim() || !scene.trim() || busy) return;
@@ -66,54 +120,54 @@ export default function ThumbnailStudio() {
   }
 
   return (
-    <div className="min-h-full p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-1">サムネ</h1>
-      <p className="text-sm opacity-70 mb-5">
-        コピーと背景を指定するとサムネ画像を生成します（AI画像生成）。テイストは studio/thumbnail-style.md で寄せられます。
+    <div className="min-h-full p-8 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-bold mb-2">サムネ</h1>
+      <p className="text-base opacity-70 mb-6 leading-relaxed">
+        編集中の動画の内容から各欄を自動入力できます。整えて「サムネを生成」を押すと画像を作ります（テイストは studio/thumbnail-style.md）。
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-5">
+      {/* 編集中の動画 + 自動入力 */}
+      <div className="flex items-center flex-wrap gap-3 mb-6 p-4 rounded-lg bg-[var(--panel)] border border-[var(--border)]">
+        <span className="text-[15px] opacity-70">編集中の動画:</span>
+        <span className="text-[15px] font-semibold">{projectTitle || "（未取得）"}</span>
+        <button className="btn ml-auto" onClick={() => autofill(false)} disabled={suggesting || busy}>
+          {suggesting ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="spinner" /> 動画から自動入力中…
+            </span>
+          ) : (
+            "この動画から自動入力"
+          )}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8">
         {/* 入力 */}
-        <div className="space-y-3">
-          <label className="block text-sm">
-            <span className="opacity-70">メインコピー（上半分の大きい文字）</span>
-            <input
-              className="mt-1 w-full px-3 py-2 rounded bg-[var(--panel-2)] border border-[var(--border)]"
-              placeholder="例: 知らないと損する〇〇"
-              value={mainCopy}
-              onChange={(e) => setMainCopy(e.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="opacity-70">サブコピー（右下・任意）</span>
-            <input
-              className="mt-1 w-full px-3 py-2 rounded bg-[var(--panel-2)] border border-[var(--border)]"
-              placeholder="例: 完全保存版"
-              value={subCopy}
-              onChange={(e) => setSubCopy(e.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="opacity-70">背景 / 被写体の説明</span>
+        <div className="space-y-5">
+          <div>
+            <span className={labelCls}>メインコピー（上半分の大きい文字）</span>
+            <input className={inputCls} placeholder="例: 知らないと損する〇〇" value={mainCopy} onChange={(e) => setMainCopy(e.target.value)} />
+          </div>
+          <div>
+            <span className={labelCls}>サブコピー（右下・任意）</span>
+            <input className={inputCls} placeholder="例: 完全保存版" value={subCopy} onChange={(e) => setSubCopy(e.target.value)} />
+          </div>
+          <div>
+            <span className={labelCls}>背景 / 被写体の説明</span>
             <textarea
-              className="mt-1 w-full px-3 py-2 rounded bg-[var(--panel-2)] border border-[var(--border)] h-28 resize-y"
+              className={inputCls + " h-32 resize-y leading-relaxed"}
               placeholder="例: デスクの上にノートPCとコーヒー、明るい朝の光。人物なし。"
               value={scene}
               onChange={(e) => setScene(e.target.value)}
             />
-          </label>
-          <label className="block text-sm">
-            <span className="opacity-70">左上バッジ（任意）</span>
-            <input
-              className="mt-1 w-full px-3 py-2 rounded bg-[var(--panel-2)] border border-[var(--border)]"
-              placeholder="例: 保存版"
-              value={badge}
-              onChange={(e) => setBadge(e.target.value)}
-            />
-          </label>
-          <div className="flex gap-2">
+          </div>
+          <div>
+            <span className={labelCls}>左上バッジ（任意）</span>
+            <input className={inputCls} placeholder="例: 保存版" value={badge} onChange={(e) => setBadge(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-3 pt-1">
             {!busy ? (
-              <button className="btn btn-accent" onClick={generate} disabled={!mainCopy.trim() || !scene.trim()}>
+              <button className="btn-accent" onClick={generate} disabled={!mainCopy.trim() || !scene.trim()}>
                 サムネを生成
               </button>
             ) : (
@@ -128,7 +182,7 @@ export default function ThumbnailStudio() {
             )}
           </div>
           {steps.length > 0 && (
-            <div className="text-xs opacity-60 space-y-0.5">
+            <div className="text-[13px] opacity-60 space-y-0.5">
               {steps.map((s, i) => (
                 <div key={i} className="truncate">
                   {s}
@@ -136,19 +190,19 @@ export default function ThumbnailStudio() {
               ))}
             </div>
           )}
-          {busy && <div className="text-xs opacity-60">画像生成中…（数十秒かかることがあります）</div>}
+          {busy && <div className="text-[13px] opacity-60">画像生成中…（数十秒かかることがあります）</div>}
           {err && <div className="text-sm text-red-400">{err}</div>}
         </div>
 
         {/* プレビュー */}
         <div>
-          <div className="text-sm opacity-70 mb-1">プレビュー（16:9）</div>
-          <div className="aspect-video w-full rounded border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center overflow-hidden">
+          <div className="text-[15px] opacity-70 mb-2">プレビュー（16:9）</div>
+          <div className="aspect-video w-full rounded-lg border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center overflow-hidden">
             {imgUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={imgUrl} alt="thumbnail" className="w-full h-full object-contain" />
             ) : (
-              <span className="opacity-40 text-sm">ここにサムネが表示されます</span>
+              <span className="opacity-40 text-base">ここにサムネが表示されます</span>
             )}
           </div>
         </div>

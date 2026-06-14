@@ -24,6 +24,44 @@ function readStyle(): string {
   }
 }
 
+/** 編集中の動画の内容（タイトル・テロップ・文字起こし）からサムネ要素を提案させる文脈 */
+export type ThumbnailContext = {
+  title: string;
+  telops?: string[];
+  transcript?: string;
+};
+
+/**
+ * 動画の内容から、サムネの各入力欄(mainCopy/subCopy/scene/badge)を提案させるプロンプト（汎用）。
+ * Codex には JSON のみを返させる。テイストは studio/thumbnail-style.md に従う。
+ */
+export function buildThumbnailSuggestPrompt(ctx: ThumbnailContext): string {
+  return [
+    "あなたは YouTube動画のサムネイル制作者です。",
+    "下記【サムネのテイスト】を踏まえ、この動画にふさわしいサムネの要素を提案してください。",
+    "（テイストが未設定なら、一般的に見やすいサムネとして提案する）",
+    "",
+    "## 出力（重要）",
+    "次のJSONだけを出力する（前後に説明文・コードブロック記号を付けない）:",
+    '{"mainCopy":"…","subCopy":"…","scene":"…","badge":"…"}',
+    "- mainCopy: 画面上半分の大きい文字。3〜5語で、内容が一目で伝わるフック。",
+    "- subCopy: 右下の補足コピー（無くてよければ空文字）。",
+    "- scene: 背景/被写体の描写（日本語。動画内容に合う画。人物の有無も書く）。",
+    "- badge: 左上バッジ文言（無くてよければ空文字）。",
+    "",
+    "## この動画の内容",
+    `タイトル: ${ctx.title}`,
+    ctx.telops && ctx.telops.length ? `テロップ抜粋: ${ctx.telops.slice(0, 40).join(" / ")}` : "",
+    ctx.transcript ? `文字起こし抜粋: ${ctx.transcript.slice(0, 1500)}` : "",
+    "",
+    "---",
+    "# 【サムネのテイスト】（一次ソース。記載があれば最優先で従う）",
+    readStyle() || "(まだ未設定。一般的なサムネとして提案してください)",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 /**
  * @param outPath 生成画像を保存させる絶対パス（PNG）
  */

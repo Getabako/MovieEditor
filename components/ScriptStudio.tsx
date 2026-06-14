@@ -7,6 +7,10 @@ import React, { useRef, useState } from "react";
 // このコンポーネント自体にはチャンネル固有の文言を持たせない。
 // ============================================================================
 
+const labelCls = "block text-[15px] font-medium opacity-80 mb-1.5";
+const inputCls =
+  "w-full px-3.5 py-3 text-[15px] rounded-lg bg-[var(--panel-2)] border border-[var(--border)]";
+
 type Format = { value: string; label: string };
 const FORMATS: Format[] = [
   { value: "explainer", label: "解説" },
@@ -74,63 +78,47 @@ export default function ScriptStudio() {
   }
 
   return (
-    <div className="min-h-full p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-1">台本</h1>
-      <p className="text-sm opacity-70 mb-5">
+    <div className="min-h-full p-8 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-bold mb-2">台本</h1>
+      <p className="text-base opacity-70 mb-6 leading-relaxed">
         テーマを入れると台本を生成します。テイストは studio/script-style.md に書くほど寄ります（未設定なら一般的な構成）。
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8">
         {/* 入力 */}
-        <div className="space-y-3">
-          <label className="block text-sm">
-            <span className="opacity-70">テーマ / お題</span>
-            <input
-              className="mt-1 w-full px-3 py-2 rounded bg-[var(--panel-2)] border border-[var(--border)]"
-              placeholder="例: 初心者向けに〇〇を5分で解説"
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
-            />
-          </label>
-          <div className="flex gap-3">
-            <label className="block text-sm flex-1">
-              <span className="opacity-70">フォーマット</span>
-              <select
-                className="mt-1 w-full px-2 py-2 rounded bg-[var(--panel-2)] border border-[var(--border)]"
-                value={format}
-                onChange={(e) => setFormat(e.target.value)}
-              >
+        <div className="space-y-5">
+          <div>
+            <span className={labelCls}>テーマ / お題</span>
+            <input className={inputCls} placeholder="例: 初心者向けに〇〇を5分で解説" value={theme} onChange={(e) => setTheme(e.target.value)} />
+          </div>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <span className={labelCls}>フォーマット</span>
+              <select className={inputCls} value={format} onChange={(e) => setFormat(e.target.value)}>
                 {FORMATS.map((f) => (
                   <option key={f.value} value={f.value}>
                     {f.label}
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="block text-sm w-28">
-              <span className="opacity-70">尺(分)</span>
-              <input
-                type="number"
-                min={1}
-                max={40}
-                className="mt-1 w-full px-2 py-2 rounded bg-[var(--panel-2)] border border-[var(--border)]"
-                value={minutes}
-                onChange={(e) => setMinutes(Number(e.target.value))}
-              />
-            </label>
+            </div>
+            <div className="w-32">
+              <span className={labelCls}>尺(分)</span>
+              <input type="number" min={1} max={40} className={inputCls} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} />
+            </div>
           </div>
-          <label className="block text-sm">
-            <span className="opacity-70">盛り込みたい点・要望（任意）</span>
+          <div>
+            <span className={labelCls}>盛り込みたい点・要望（任意）</span>
             <textarea
-              className="mt-1 w-full px-3 py-2 rounded bg-[var(--panel-2)] border border-[var(--border)] h-24 resize-y"
+              className={inputCls + " h-28 resize-y leading-relaxed"}
               placeholder="例: 具体例を多めに。最後に視聴者への問いかけを入れて。"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
-          </label>
-          <div className="flex gap-2">
+          </div>
+          <div className="flex items-center gap-3 pt-1">
             {!busy ? (
-              <button className="btn btn-accent" onClick={generate} disabled={!theme.trim()}>
+              <button className="btn-accent" onClick={generate} disabled={!theme.trim()}>
                 台本を生成
               </button>
             ) : (
@@ -145,7 +133,7 @@ export default function ScriptStudio() {
             )}
           </div>
           {steps.length > 0 && (
-            <div className="text-xs opacity-60 space-y-0.5">
+            <div className="text-[13px] opacity-60 space-y-0.5">
               {steps.map((s, i) => (
                 <div key={i} className="truncate">
                   {s}
@@ -158,9 +146,9 @@ export default function ScriptStudio() {
 
         {/* 出力 */}
         <div>
-          <div className="text-sm opacity-70 mb-1">生成結果（編集可）</div>
+          <div className="text-[15px] opacity-70 mb-2">生成結果（編集可）</div>
           <textarea
-            className="w-full h-[70vh] px-4 py-3 rounded bg-[var(--panel)] border border-[var(--border)] font-mono text-sm leading-relaxed resize-none"
+            className="w-full h-[70vh] px-5 py-4 rounded-lg bg-[var(--panel)] border border-[var(--border)] text-[15px] leading-loose resize-none"
             placeholder="ここに台本が表示されます。"
             value={script}
             onChange={(e) => setScript(e.target.value)}
