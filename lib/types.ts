@@ -110,8 +110,10 @@ export type ShapeOverlay = OverlayBase & {
   width?: number;
   /** 高さ（出力高さに対する相対 0-1）。既定 0.2。width と独立＝縦横比を変えられる */
   height?: number;
-  /** 塗り色 */
+  /** 線（縁取り）の色。図形は塗りつぶさず縁の線だけ描く */
   color?: string;
+  /** 線の太さ（出力px）。既定 8 */
+  strokeWidth?: number;
   opacity?: number;
   /** 回転（度）。既定 0 */
   rotation?: number;

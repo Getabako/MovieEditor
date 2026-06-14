@@ -310,12 +310,14 @@ const TextOverlayView: React.FC<{ ov: TextOverlay; edl: EditorProps["edl"] }> = 
   );
 };
 
-/** 図形（まる/三角/四角） */
+/** 図形（まる/三角/四角）＝塗りつぶさず縁の線だけ（SVG outline） */
 const ShapeView: React.FC<{ ov: ShapeOverlay; edl: EditorProps["edl"] }> = ({ ov, edl }) => {
-  const w = (ov.width ?? 0.2) * edl.output.width;
-  const h = (ov.height ?? 0.2) * edl.output.height;
+  const w = Math.max(1, (ov.width ?? 0.2) * edl.output.width);
+  const h = Math.max(1, (ov.height ?? 0.2) * edl.output.height);
   const color = ov.color ?? "#FF5A5A";
-  const base: React.CSSProperties = {
+  const sw = ov.strokeWidth ?? 8;
+  const m = sw / 2;
+  const wrap: React.CSSProperties = {
     position: "absolute",
     left: `${(ov.x ?? 0.5) * 100}%`,
     top: `${(ov.y ?? 0.5) * 100}%`,
@@ -324,23 +326,22 @@ const ShapeView: React.FC<{ ov: ShapeOverlay; edl: EditorProps["edl"] }> = ({ ov
     height: h,
     opacity: ov.opacity ?? 1,
   };
-  if (ov.shape === "circle") {
-    return (
-      <AbsoluteFill>
-        <div style={{ ...base, background: color, borderRadius: "50%" }} />
-      </AbsoluteFill>
-    );
-  }
-  if (ov.shape === "triangle") {
-    return (
-      <AbsoluteFill>
-        <div style={{ ...base, background: color, clipPath: "polygon(50% 0%, 100% 100%, 0% 100%)" }} />
-      </AbsoluteFill>
-    );
-  }
+  const common = { fill: "none", stroke: color, strokeWidth: sw } as const;
   return (
     <AbsoluteFill>
-      <div style={{ ...base, background: color }} />
+      <div style={wrap}>
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: "block", overflow: "visible" }}>
+          {ov.shape === "circle" && (
+            <ellipse cx={w / 2} cy={h / 2} rx={(w - sw) / 2} ry={(h - sw) / 2} {...common} />
+          )}
+          {ov.shape === "triangle" && (
+            <polygon points={`${w / 2},${m} ${w - m},${h - m} ${m},${h - m}`} strokeLinejoin="round" {...common} />
+          )}
+          {ov.shape === "rect" && (
+            <rect x={m} y={m} width={w - sw} height={h - sw} strokeLinejoin="round" {...common} />
+          )}
+        </svg>
+      </div>
     </AbsoluteFill>
   );
 };

@@ -195,6 +195,15 @@ export default function EditorApp() {
       color: shapeColor,
     } as ShapeOverlay);
   }
+  /** 選択中の素材（画像/図形/SE）の表示区間を変更 */
+  function patchSelectedTime(patch: { startSec?: number; endSec?: number }) {
+    const cur = edlRef.current;
+    if (!cur || !selectedOverlayId) return;
+    void applyEdl(
+      { ...cur, overlays: cur.overlays.map((o) => (o.id === selectedOverlayId ? { ...o, ...patch } : o)) },
+      "表示区間を変更",
+    );
+  }
   /** 選択中の図形の色を変更（パレットの色も更新） */
   function applyColor(color: string) {
     setShapeColor(color);
@@ -328,6 +337,8 @@ export default function EditorApp() {
     setExportUrl(null);
     setLog([]);
     setView("editor");
+    // プレビュー軽量化は自動（未生成なら裏で作る）。完了後にプロキシへ自動で切替。
+    if (!r.proxyExists) void autoBuildProxy(id);
   }
 
   function applyState(m: ProjectMeta, e: EDL, h: HistoryEntry[]) {
@@ -499,24 +510,19 @@ export default function EditorApp() {
   }
 
   // ---- プレビュー用プロキシ生成 ----
-  async function runProxy() {
-    if (!meta) return;
-    setBusy("proxy");
-    setLog([]);
+  /** プレビュー軽量化（プロキシ生成）を裏で自動実行する。UI を塞がず、完了したら差し替え。 */
+  const proxyBuildingRef = useRef<Set<string>>(new Set());
+  async function autoBuildProxy(id: string) {
+    if (proxyBuildingRef.current.has(id)) return;
+    proxyBuildingRef.current.add(id);
     try {
-      await consumeSSE("/api/proxy", { id: meta.id }, (event, data) => {
-        if (event === "step") pushLog(data.kind ?? "info", data.text ?? "");
-        else if (event === "progress") pushLog("progress", `軽量化 ${data.pct}%`);
-        else if (event === "error") pushLog("error", data.message ?? "エラー");
-        else if (event === "done") {
-          setProxyExists(true);
-          pushLog("ok", "✓ プレビュー軽量化が完了（プレビューが軽くなりました）");
-        }
+      await consumeSSE("/api/proxy", { id }, (event) => {
+        if (event === "done") setProxyExists(true);
       });
-    } catch (e) {
-      pushLog("error", (e as Error).message);
+    } catch {
+      /* 失敗してもフル動画で再生できるので黙って無視 */
     } finally {
-      setBusy(null);
+      proxyBuildingRef.current.delete(id);
     }
   }
 
@@ -592,7 +598,7 @@ export default function EditorApp() {
     const loading = creating || picking;
     return (
       <main className="min-h-screen p-8 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">🎬 MovieEditor</h1>
+        <h1 className="text-2xl font-bold mb-1">MovieEditor</h1>
         <p className="text-sm opacity-70 mb-6">
           口頭/自然言語の指示で既存動画を非破壊編集（Codex + Remotion）
         </p>
@@ -630,7 +636,7 @@ export default function EditorApp() {
               onChange={(e) => setPathInput(e.target.value)}
             />
             <button className="btn" disabled={loading} onClick={() => pickFile()}>
-              📁 ファイルを選択
+              ファイルを選択
             </button>
             <button
               className="btn-accent"
@@ -680,7 +686,7 @@ export default function EditorApp() {
                     title="この編集データを削除"
                     onClick={() => deleteProjectById(p.id, p.title)}
                   >
-                    🗑
+                    削除
                   </button>
                 </div>
               ))}
@@ -729,11 +735,11 @@ export default function EditorApp() {
             <span className="text-[var(--accent-2)]">✓ 字幕あり</span>
           ) : (
             <button className="btn" disabled={!!busy} onClick={runTranscribe}>
-              {busy === "transcribe" ? "文字起こし中…" : "📝 文字起こし"}
+              {busy === "transcribe" ? "文字起こし中…" : "文字起こし"}
             </button>
           )}
           <button className="btn-accent" disabled={!!busy} onClick={runExport}>
-            {busy === "export" ? "書き出し中…" : "⬇ 書き出し"}
+            {busy === "export" ? "書き出し中…" : "書き出し"}
           </button>
         </div>
       </header>
@@ -794,7 +800,7 @@ export default function EditorApp() {
         {/* 右パネル: 指示 + ワンクリックを統合し、1ボタンで一気に実行 */}
         <aside className="w-[460px] border-l border-[var(--border)] bg-[var(--panel)] flex flex-col min-h-0">
           <div className="p-3 border-b border-[var(--border)] overflow-auto">
-            <div className="text-sm font-semibold mb-2">🗣 やりたい編集を入力</div>
+            <div className="text-sm font-semibold mb-2">やりたい編集を入力</div>
             <textarea
               className="w-full h-24 bg-[var(--panel-2)] border border-[var(--border)] rounded p-2 text-sm resize-none"
               placeholder={
@@ -813,24 +819,24 @@ export default function EditorApp() {
                 disabled={!!busy}
                 title="音声入力"
               >
-                {listening ? "● 録音中" : "🎤 音声"}
+                {listening ? "録音中…" : "音声入力"}
               </button>
             </div>
 
             {/* 装飾・音：画像/記号/BGM/効果音。画像と記号はプレビュー上でドラッグ移動・角でサイズ変更 */}
-            <div className="text-sm font-semibold mt-4 mb-2">🎨 装飾・音を足す</div>
+            <div className="text-sm font-semibold mt-4 mb-2">装飾・音を足す</div>
             <div className="text-xs opacity-60 mb-2">
-              追加すると再生位置から5秒表示。プレビュー上で<strong>ドラッグ＝移動／右下の緑■＝サイズ変更／×＝削除</strong>。
+              追加した素材はプレビュー上で<strong>ドラッグ＝移動／右下の緑■＝サイズ変更／×＝削除</strong>。表示する長さは選択して下で調整できます。
             </div>
             <div className="flex flex-wrap gap-1 mb-2">
-              <button className="btn !text-xs" onClick={addImage}>🖼 画像を追加</button>
-              <button className="btn !text-xs" onClick={pickBgm}>🎵 BGMを選ぶ</button>
+              <button className="btn !text-xs" onClick={addImage}>画像を追加</button>
+              <button className="btn !text-xs" onClick={pickBgm}>BGMを選ぶ</button>
               {edl?.audio?.bgmPath && (
                 <button className="btn !text-xs" onClick={() => setAudioPatch({ bgmPath: undefined }, "BGM解除")}>
                   BGM解除
                 </button>
               )}
-              <button className="btn !text-xs" onClick={addSe}>🔊 効果音をここに</button>
+              <button className="btn !text-xs" onClick={addSe}>効果音をここに</button>
             </div>
             {edl?.audio?.bgmPath && (
               <div className="flex items-center gap-2 mb-2 text-xs">
@@ -874,9 +880,50 @@ export default function EditorApp() {
               <div className="text-xs opacity-60 mt-1">効果音 {edl.audio.se.length}個（履歴から取り消せます）</div>
             )}
 
+            {/* 選択中の素材の表示区間（長さ）調整 */}
+            {(() => {
+              const sel = edl?.overlays.find((o) => o.id === selectedOverlayId);
+              if (!sel || (sel.type !== "image" && sel.type !== "shape" && !(sel.type === "text" && sel.free)))
+                return null;
+              return (
+                <div className="mt-2 p-2 rounded bg-[var(--panel-2)] border border-[var(--border)]">
+                  <div className="text-xs font-semibold mb-1">選択中の素材の表示区間</div>
+                  <div className="text-xs opacity-70 mb-2">
+                    {fmtTime(sel.startSec)} 〜 {fmtTime(sel.endSec)}（{(sel.endSec - sel.startSec).toFixed(1)}秒）
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      className="btn !text-xs"
+                      onClick={() => patchSelectedTime({ startSec: Math.min(playheadSec, sel.endSec - 0.3) })}
+                    >
+                      開始を再生位置に
+                    </button>
+                    <button
+                      className="btn !text-xs"
+                      onClick={() => patchSelectedTime({ endSec: Math.max(playheadSec, sel.startSec + 0.3) })}
+                    >
+                      終了を再生位置に
+                    </button>
+                    <button
+                      className="btn !text-xs"
+                      onClick={() => patchSelectedTime({ endSec: Math.min(durationSec, sel.startSec + 2) })}
+                    >
+                      2秒
+                    </button>
+                    <button
+                      className="btn !text-xs"
+                      onClick={() => patchSelectedTime({ endSec: Math.min(durationSec, sel.startSec + 5) })}
+                    >
+                      5秒
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ワンクリック処理（任意でチェック。指示と一緒に一気に実行される） */}
             <div className="text-sm font-semibold mt-4 mb-2">
-              ⚡ ワンクリック処理 <span className="opacity-50 font-normal text-xs">（任意・複数選択可）</span>
+              ワンクリック処理 <span className="opacity-50 font-normal text-xs">（任意・複数選択可）</span>
             </div>
             <div className="flex flex-col gap-1">
               {PRESET_UI.map((p) => {
@@ -908,7 +955,7 @@ export default function EditorApp() {
 
             {/* 全体の再生速度 */}
             <div className="flex items-center gap-2 text-sm px-2 py-2 mt-1">
-              <span className="opacity-80">⏩ 全体の再生速度</span>
+              <span className="opacity-80">全体の再生速度</span>
               <select
                 className="bg-[var(--panel-2)] border border-[var(--border)] rounded px-2 py-1 text-sm"
                 value={speed}
@@ -923,21 +970,8 @@ export default function EditorApp() {
                 <option value={2}>2倍</option>
               </select>
             </div>
-            <div className="px-2 -mt-1">
-              {proxyExists ? (
-                <div className="text-xs text-[var(--accent-2)]">
-                  ✓ プレビュー軽量化済み（プレビューが軽くなりました／速度は書き出しで反映）
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs opacity-50">
-                    ※ プレビューは等速・速度は書き出しで反映。重い場合は→
-                  </span>
-                  <button className="btn !py-1 !text-xs" disabled={!!busy} onClick={runProxy}>
-                    {busy === "proxy" ? "軽量化中…" : "⚡ プレビュー軽量化"}
-                  </button>
-                </div>
-              )}
+            <div className="px-2 -mt-1 text-xs opacity-50">
+              ※ プレビューは等速。速度は書き出しに反映されます。
             </div>
 
             {/* 統合実行ボタン */}
@@ -995,7 +1029,7 @@ export default function EditorApp() {
               ))}
               {exportUrl && (
                 <a className="text-[var(--accent-2)] underline block mt-2" href={exportUrl}>
-                  ⬇ 書き出した動画をダウンロード
+                  書き出した動画をダウンロード
                 </a>
               )}
               <div ref={logEndRef} />
@@ -1004,7 +1038,7 @@ export default function EditorApp() {
 
           {/* 履歴 */}
           <div className="p-3 max-h-[28%] overflow-auto">
-            <div className="text-sm font-semibold mb-2">🕘 履歴（クリックで復元）</div>
+            <div className="text-sm font-semibold mb-2">履歴（クリックで復元）</div>
             <div className="flex flex-col gap-0.5">
               {[...history].reverse().map((h) => (
                 <button
