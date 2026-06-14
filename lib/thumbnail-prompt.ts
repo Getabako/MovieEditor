@@ -7,12 +7,45 @@ import path from "node:path";
 // チャンネル固有の文言はここに持たせない（テイストは後から学習させる前提）。
 // ============================================================================
 
+/** 参照画像の役割。生成時に合成方法を変える。 */
+export type RefRole = "person" | "character" | "logo" | "other";
+
+export type RefImage = {
+  path: string; // 参照画像の絶対パス
+  role: RefRole;
+};
+
 export type ThumbnailInput = {
   mainCopy: string; // メインコピー（画面上半分の大きい文字）
   subCopy?: string; // サブコピー（右下）
   scene: string; // 背景/被写体の説明
   badge?: string; // 左上バッジ文言
+  refs?: RefImage[]; // 参照画像（人物/キャラ/ロゴ等）。サムネに合成する。
 };
+
+const ROLE_LABEL: Record<RefRole, string> = {
+  person: "人物",
+  character: "キャラクター",
+  logo: "ロゴ",
+  other: "参考",
+};
+
+/** 参照画像を使う場合の、役割別の合成指示ブロックを作る */
+function buildRefsBlock(refs?: RefImage[]): string {
+  if (!refs || refs.length === 0) return "";
+  const lines = refs.map((r, i) => `  ${i + 1}. [${ROLE_LABEL[r.role]}] ${r.path}`);
+  return [
+    "",
+    "## 参照画像の合成（重要）",
+    "次の参照画像を読み込み、サムネに自然に取り込むこと。各画像を image_gen の入力リファレンスとして使い、人物/キャラはシーンと一体に、ロゴは正確に再現する。",
+    ...lines,
+    "- [人物]/[キャラクター]: 顔・髪・服・特徴を崩さず本人と分かる形で残し、背景シーンのライティング・色・影・遠近に馴染ませて自然に合成する（切り抜き貼り付けに見えないように）。主役として目立つ配置。",
+    "- [ロゴ]: 形・色・文字を改変しない（書き換え・装飾の追加・歪み禁止）。視認できるサイズで隅などに配置。",
+    "- [参考]: 雰囲気・配色・小物の参考として活用する。",
+    "- 参照画像にある人物・ロゴを勝手に別人・別デザインに描き替えないこと。",
+    "- 自社ロゴ・自社出演者以外の第三者の商標・顔は使わない（権利確認済みの素材のみ）。",
+  ].join("\n");
+}
 
 const STYLE_FILE = path.join(process.cwd(), "studio", "thumbnail-style.md");
 
@@ -82,6 +115,7 @@ export function buildThumbnailPrompt(input: ThumbnailInput, outPath: string): st
     input.subCopy ? `サブコピー（右下）: ${input.subCopy}` : "",
     input.badge ? `左上バッジ: ${input.badge}` : "",
     "- 日本語テキストは一字一句正確に描画する（文字化け・字形崩れ厳禁）。",
+    buildRefsBlock(input.refs),
     "",
     "---",
     "# 【サムネのテイスト】（一次ソース。記載があれば最優先で従う）",

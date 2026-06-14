@@ -16,6 +16,7 @@ export default function ThumbnailStudio() {
   const [subCopy, setSubCopy] = useState("");
   const [scene, setScene] = useState("");
   const [badge, setBadge] = useState("");
+  const [refs, setRefs] = useState<{ path: string; role: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [projectTitle, setProjectTitle] = useState("");
@@ -84,7 +85,7 @@ export default function ThumbnailStudio() {
       const res = await fetch("/api/thumbnail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mainCopy, subCopy, scene, badge }),
+        body: JSON.stringify({ mainCopy, subCopy, scene, badge, refs }),
         signal: ac.signal,
       });
       if (!res.body) throw new Error("no stream");
@@ -117,6 +118,19 @@ export default function ThumbnailStudio() {
 
   function stop() {
     abortRef.current?.abort();
+  }
+
+  // 参照画像（人物/キャラ/ロゴ）をネイティブダイアログで追加
+  async function addRef() {
+    const r = await fetch("/api/pick-file?kind=image").then((x) => x.json());
+    if (r.canceled || !r.path) return;
+    setRefs((rs) => [...rs, { path: r.path, role: "person" }]);
+  }
+  function setRefRole(i: number, role: string) {
+    setRefs((rs) => rs.map((r, idx) => (idx === i ? { ...r, role } : r)));
+  }
+  function removeRef(i: number) {
+    setRefs((rs) => rs.filter((_, idx) => idx !== i));
   }
 
   return (
@@ -165,6 +179,49 @@ export default function ThumbnailStudio() {
             <span className={labelCls}>左上バッジ（任意）</span>
             <input className={inputCls} placeholder="例: 保存版" value={badge} onChange={(e) => setBadge(e.target.value)} />
           </div>
+
+          {/* 参照画像（人物・キャラ・ロゴ）→ サムネに合成 */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[15px] font-medium opacity-80">参照画像（人物・キャラ・ロゴ）</span>
+              <button className="btn !py-1.5 !px-3 !text-sm" onClick={addRef} disabled={busy}>
+                ＋ 画像を追加
+              </button>
+            </div>
+            {refs.length === 0 ? (
+              <div className="text-[13px] opacity-50 leading-relaxed">
+                人物・キャラ・ロゴを追加すると、その画像をサムネに合成して生成します（複数可）。
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {refs.map((r, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--panel-2)] border border-[var(--border)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/file?path=${encodeURIComponent(r.path)}`}
+                      alt=""
+                      className="w-12 h-12 object-cover rounded shrink-0 bg-black/30"
+                    />
+                    <select
+                      value={r.role}
+                      onChange={(e) => setRefRole(i, e.target.value)}
+                      className="px-2 py-1.5 rounded bg-[var(--panel)] border border-[var(--border)] text-sm shrink-0"
+                    >
+                      <option value="person">人物</option>
+                      <option value="character">キャラ</option>
+                      <option value="logo">ロゴ</option>
+                      <option value="other">参考</option>
+                    </select>
+                    <span className="text-xs opacity-50 truncate flex-1">{r.path.split("/").pop()}</span>
+                    <button className="btn !py-1 !px-2.5 !text-red-400 shrink-0" onClick={() => removeRef(i)} title="削除">
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-3 pt-1">
             {!busy ? (
               <button className="btn-accent" onClick={generate} disabled={!mainCopy.trim() || !scene.trim()}>

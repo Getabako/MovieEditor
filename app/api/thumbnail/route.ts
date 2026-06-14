@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * テーマ/コピーからWEEDMANテイストのサムネ画像を生成する。
+ * コピー/背景からサムネ画像を生成する。
  * Codex に画像生成→指定パスへPNG保存を依頼し、保存されたファイルを /api/file 経由で返す。
  */
 export async function POST(req: NextRequest) {
@@ -22,7 +22,22 @@ export async function POST(req: NextRequest) {
   ensureDir(paths.thumbnailsDir);
   const id = newId();
   const outPath = path.join(paths.thumbnailsDir, `${id}.png`);
-  const prompt = buildThumbnailPrompt(input, outPath);
+
+  // 参照画像はCodexのサンドボックス(cwd=thumbnailsDir)配下へ複製してから渡す（読み取り確実化）
+  const refs = (input.refs ?? [])
+    .map((r, i) => {
+      try {
+        const ext = path.extname(r.path) || ".png";
+        const dest = path.join(paths.thumbnailsDir, `${id}_ref${i}${ext}`);
+        fs.copyFileSync(r.path, dest);
+        return { path: dest, role: r.role };
+      } catch {
+        return null;
+      }
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  const prompt = buildThumbnailPrompt({ ...input, refs }, outPath);
 
   return sseResponse(async (send, signal) => {
     send("init", {});
