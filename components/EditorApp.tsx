@@ -65,6 +65,7 @@ export default function EditorApp() {
   const [selection, setSelection] = useState<{ startSec: number; endSec: number } | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [shapeColor, setShapeColor] = useState("#FF5A5A");
+  const [shapeDurationSec, setShapeDurationSec] = useState(5); // 図形の表示秒数（1〜10）
 
   const [instruction, setInstruction] = useState("");
   const [log, setLog] = useState<LogLine[]>([]);
@@ -187,7 +188,7 @@ export default function EditorApp() {
       type: "shape",
       shape: kind,
       startSec: playheadSec,
-      endSec: Math.min(durationSec, playheadSec + 5),
+      endSec: Math.min(durationSec, playheadSec + shapeDurationSec),
       x: 0.5,
       y: 0.5,
       width: 0.18,
@@ -874,6 +875,21 @@ export default function EditorApp() {
                   className="w-7 h-7 p-0 border border-[var(--border)] rounded cursor-pointer bg-transparent"
                   title="図形の色（選択中の図形にも適用）"
                 />
+              </label>
+              <label className="flex items-center gap-1 text-xs opacity-80">
+                秒数
+                <select
+                  value={shapeDurationSec}
+                  onChange={(e) => setShapeDurationSec(Number(e.target.value))}
+                  className="px-1 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] cursor-pointer"
+                  title="図形の表示秒数（再生位置から）"
+                >
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>
+                      {n}秒
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             {edl?.audio?.se && edl.audio.se.length > 0 && (
