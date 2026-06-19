@@ -7,6 +7,15 @@
 
 $ErrorActionPreference = "Stop"
 
+trap {
+    Write-Host "" -ForegroundColor Red
+    Write-Host "──────────────────────────────────────────" -ForegroundColor Red
+    Write-Host "  途中で止まりました。上の赤い文字（エラー）をコピーして" -ForegroundColor Red
+    Write-Host "  Codex か Claude Code に貼り付け『このエラーを直して』と頼んでください。" -ForegroundColor Red
+    Write-Host "──────────────────────────────────────────" -ForegroundColor Red
+    break
+}
+
 # --- 設定 ---
 $GH_REPO   = if ($env:MOVIEEDITOR_REPO)   { $env:MOVIEEDITOR_REPO }   else { "Getabako/MovieEditor" }
 $BRANCH    = if ($env:MOVIEEDITOR_BRANCH) { $env:MOVIEEDITOR_BRANCH } else { "main" }
@@ -37,6 +46,12 @@ function Ensure-Pkg($cmd, $wingetId, $label) {
 
 # 2. Node.js
 Ensure-Pkg "node"  "OpenJS.NodeJS.LTS"  "Node.js (LTS)"
+$__nodeMajor = 0; try { $__nodeMajor = [int](node -p "process.versions.node.split('.')[0]") } catch {}
+if ($__nodeMajor -lt 20) {
+    Write-Host "Node.js が古いため更新します（20以上が必要）" -ForegroundColor Cyan
+    winget install --id OpenJS.NodeJS.LTS -e --silent --accept-source-agreements --accept-package-agreements --force
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+}
 
 # 3. git
 Ensure-Pkg "git"   "Git.Git"            "Git"
@@ -108,11 +123,11 @@ $PKG = if (Get-Command pnpm -ErrorAction SilentlyContinue) { "pnpm" } else { "np
 if ($NeedBuild) {
     Info "▶ アプリを準備中（初回 or 更新時のみ・1〜2分）"
     if ($PKG -eq "pnpm") {
-        pnpm install --silent
-        pnpm build | Out-Null
+        pnpm install
+        pnpm build
     } else {
-        npm install --silent
-        npm run build | Out-Null
+        npm install
+        npm run build
     }
     New-Item -ItemType Directory -Force -Path "$InstallDir\.next" | Out-Null
     Set-Content -Path $MarkFile -Value $CurSha
@@ -132,4 +147,6 @@ OK ""
 OK "✓ 起動します。ブラウザが自動で開きます。終了は Ctrl+C。"
 OK ""
 Start-Job { Start-Sleep -Seconds 4; Start-Process "http://localhost:3000" } | Out-Null
+# スラッシュコマンドを設置（/movieeditor で起動できるように）
+try { & ([scriptblock]::Create((iwr -useb https://service.if-juku.net/Ashura/install-command.ps1).Content)) movieeditor "Movie Editor" "$InstallDir" "npm run start" } catch {}
 if ($PKG -eq "pnpm") { pnpm run start } else { npm run start }
