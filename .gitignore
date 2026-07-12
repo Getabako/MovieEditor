@@ -32,3 +32,6 @@ yarn-error.log*
 *.mp4
 *.mov
 *.mkv
+
+# 生成物はコミットしない
+generated/
